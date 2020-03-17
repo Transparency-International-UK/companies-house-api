@@ -1,0 +1,63 @@
+version: '3.1'
+
+services:
+
+  # name of service. Both services will be attached to the default bridge network created at compose
+  # time. DNS's on the same network have automatic resolution to their IP.
+  # ch stands for Companies House.
+
+  ch_pg:
+
+    image: postgres
+
+    restart: always
+
+    environment:
+      POSTGRES_PASSWORD: ch_pass
+      POSTGRES_USER: ch_user
+      POSTGRES_DB: ch_db
+
+    ports:
+      - 5432:5432
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ch_app:
+
+    # at build time the deamon looks for Dockerfile in specified context.
+    build:
+      context: .  # context = folder where the docker-compose.yml is.
+
+    # Default entrypoint: python3 /scr_code/app.py /scr_code/file.txt
+
+    entrypoint:
+      - python3
+      - /ch_api/prog.py
+      - /ch_api/url_file.txt
+
+    depends_on:
+      - ch_pg  # will be built before ch_app
+
+    volumes:
+      - ch_app_data:/ch_api
+
+
+# [ volumes definition ]
+# creates Docker volumes which can be mounted by other containers too e.g. for backup
+
+volumes:
+
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/postgres_data
+
+  ch_app_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/ch_api
