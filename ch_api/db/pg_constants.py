@@ -13,4 +13,4 @@ DB_CONFIG_ABS_PATH = cwd + "/db/database.ini"
 DB_CONFIG_SECTION = "PostgreSQL"
 
 # name of the schema to be created/connected to.
-DB_SCHEMA = "app_test"
+DB_SCHEMA = ""  # choose schema name

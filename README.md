@@ -4,7 +4,7 @@
 - Follow the configuration steps below. 
 - Run for the first time, from the root folder run:  
 `docker-compose run ch_app [--cp, --ol, --psc, --al, --excel]` (for an explanation of what each flag does and how they 
-work check out the [`project/ch_api/README`](https://github.com/Transparency-International-UK/companies-house-api/blob/master/README.md))
+work check out the [`project/ch_api/README`](https://github.com/Transparency-International-UK/companies-house-api/blob/master/ch_api/README.md))
 - If you got your data, [backed it up](https://stackoverflow.com/questions/24718706/backup-restore-a-dockerized-postgresql-database) 
 and you are done with it and want to clean your machine, use the `project/Makefile` recipe to `make clean_all`- or 
 the other clean recipes for the level of cleaning you need. 
@@ -77,4 +77,4 @@ Just don't change any name.
 ## Option 2: deploy on your machine with pip + psql.
 
 - Clone this repo and set the root directory to `ch_api` (`cd` into it).
-- Furhter follow the instructions of the [`/ch_api/README.md`](https://github.com/Transparency-International-UK/companies-house-api/blob/master/README.md)  
+- Furhter follow the instructions of the [`/ch_api/README.md`](https://github.com/Transparency-International-UK/companies-house-api/blob/master/ch_api/README.md)  

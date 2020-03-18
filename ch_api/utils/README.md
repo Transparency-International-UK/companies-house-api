@@ -68,194 +68,26 @@ insert the JSON resources returned by the API.
 
 `requirements.txt` the requirements file. 
 
-`tests` is the test folder containing the test for each module. 
-
-#### JSON are unpacked recursively and the nested data inserted into tables
+#### JSON are unpacked recursively and the nested structure is mirrored in the tables the data is inserted to.
 
 The JSON resources returned by the CH API are all unpacked using the `unpack()` method of the `res_inserter.Inserter()` 
-class. The method walks the JSON from root level to the branches and:
+class. 
 
-* flattens and insert root-level data in pg table;
-* reads off `json_params` the names of the leaves of the resource, plucks them from the JSON and insert them 
-in pg tables (1 leaf -> 1 table).  <br /> **Note** that leaves are outright flattened, so leaves of leaves will not be 
-in separate tables, but flattened to match the leaf root level. Leaves of leaves could in principle be handles 
-separately by recursing on `unpack()` 
-* reads off `json_params` the names of the arrays of the resource, plucks them from the JSON and: <br /> 
-  * if the array contains a list of dictionaries: <br /> 
-    * it creates a new instance of the `res_inserter.Inserter()` using the each element in the array and the `reset()` 
-    method;
-    * recurses on `unpack()`.
-  * if the array contains a list of atoms (string or digit): <br />
-    * it performs a bulk insert of the elements to a table. 
-  * if the array contains a list of lists:
-    * it throws an error, lists of lists could be handled but they were not necessary for the CH resources. 
+The logic of the `unpack` method is quite simple: the object is peeled from the outer data inwards, every step towards the
+inner most data unpack encounters a nested array or a nested hash and it inserts them in different tables. 
+
+Here's a step by step explaination:
+
+* 1: flatten the data excluding the keys of nested leaves and arrays;  
+* 2: insert flattened data in table;  
+* 3: pluck nested leaves data from the JSON and inserts them in separate tables;  
+* 4: pluck nested array data from the JSON and:  
+  * if the array contains a list of dictionaries:  
+     * recursively call `unpack` until there is no data left.  
+   * if the array contains a list of atoms (string or digit):  
+     * it performs a bulk insert of the elements to a table.  
+   * if the array contains a list of lists:  
+     * it throws an error (edge case - would need an extra branch).  
     
-#### How to write the `json_params` dictionary to match the nested logic of the JSON
-
-Imagine that there is an API we query with this unique url `QWERT43` to get a certain object containing details 
-regarding siblings, the Doewy's (Chris and Martha). For convenience they are both still registered at the same address. 
-Chris goes by several nicknames, and Martha changed gender when she was 25 (she was previously called John) and she got 
-married in 2020, so she changed her family name from Dowey to Smiths. 
-
-Also, imagine that this API would cap our max number of items returned in an array to 50, and would throw a 416 http 
-error when we exceed the 900th start_index:
- <br />
- Here's the mock URL we used for the query: `base_url/siblings/QWERT43/start_index=0/items_per_page=50`
- <br />
- 
- And here's what we got back:
- 
-```json
-{"description"   : "doweys_siblings", 
- "total_results" : 2,
- "siblings"      : [{"name"         : "chris",
-                     "family_name"  : "doewy",
-                     "dob"          : {"month": 4, "year": 1985},
-                     "nicknames"    : ["chrissy", "chris_the_best", "cutie_pie"]},
-                    {"name"         : "martha",
-                     "family_name"  : "smiths",
-                     "dob"          : {"month": "", "year": 1995},
-                     "name_changes" : [{"date_change": "12/12/2018", 
-                                        "previous_name": "john",
-                                        "event": "gender change"},   
-                                       {"date_change": "01/03/2020",      
-                                        "previous_family_name": "doewy",      
-                                        "event": "wedding"}]}],
- "parents"      : {"mother": {"name": "Johanna", "age":65, "email": "johannadowey@gmail.com"},
-                   "father": {"name": "", "age":"", "email": ""}},
- "links"        : [{"self" : "base_url/siblings/QWERT43/start_index=0/items_per_page=50"}]}
-}
-```
-
-From a first look we see that: 
-
-(1) there seems to be no unique root value for the root of the tree; <br />
-(2) there is an array in root called `'siblings'` containing a list of dictionaries; <br />
-(3) there is a nested array of strings `'nicknames'` in one of the two elements of the root array `'siblings'`; <br />
-(4) there is a nested array of dictionaries `'former_names'` in one of the elements of the array of root level `'siblings'` ; <br />
-(5) there is a leaf `'address'` at root level containing a nested leaf `'country'`; <br />
-(6) there are some empty strings which can be problematic if inserting in types other than TEXT. 
-
-We are going to solve (1) by passing the  url `QWERT43` to the `unpack()` method like below:
-```python
-from utils.json_inserter import Inserter
-json = {"the json returned by the api": "would be stored in a variable"}
-siblings_params = {"the params dictionary": "would be stored in a variable"}
-url_id = "QWERT43"
-
-inserter = Inserter(json=json, params=siblings_params)
-inserter.unpack(uid_value=url_id)
-```
-
-(2) is solved by creating a separate table for the array. Both (3) and (4) are solved by adding a nested branch "arrays" 
-to the params dictionary and passing it the details of the nested arrays ("name" and "uid_key"). 
-(5) is solved by outright flattening leaves of leaves and (6) is solved by replacing all empty strings in any nested object
-with a None. 
-
-So here's the resulting params dictionary: 
-
-```python
-siblings_params = {
-"is_root"     : True,             # always True for root level data
-"name"        : "siblings_root",  # used for table name composition
-"abbreviation": "sr",             # used for table name composition
-"arrays"      : [{
-                    "name": "siblings",          # used for table name composition  
-                    "abbreviation": "siblings",  # used for table name composition
-                    "uid_key"     : ["sibling_serial_id", "url_id"],  
-                    "arrays"      : [
-                                       {"name"   : "nicknames",              # used for table name composition
-                                        "uid_key": ["sibling_serial_id", "url_id", "nicknames"]}
-                                       {"name"   : "name_changes",           # used for table name composition
-                                        "uid_key": ["sibling_serial_id",     # used for foreign and primary key
-                                                    "url_id", 
-                                                    "date_change", 
-                                                    "previous_name"]},
-                                    ],
-                }],
-"leaves"        : [{"name": "parents"}]
-"items_per_page": 50,
-"uid_key"       : ["url_id"],            
-"drop_if_empty" : ["siblings", "links"], # if the json were to return an empty list for "siblings", drop these keys.
-"drop_from_root": ["links"],             # we do not want to store this key ever.
-"pagination_cap": 900                    # after this, 416 HTTP error.
-}
-```
-
-and here's the ensusing create statements for the tables:
-
-```sql
-create table siblings_root(
-                    description TEXT NOT NULL, 
-                    total_results INTEGER NOT NULL,
-                    url_id TEXT PRIMARY KEY};
-
--- siblings_root has a 1:1 functional dependency with sr_address, apply BCNF decomposition.
-create table sr_parents(
-                    url_id TEXT PRIMARY KEY 
-                                        REFERENCES siblings_root(url_id) 
-                                        ON DELETE CASCADE ON UPDATE CASCADE,
-                    mother_name TEXT, 
-                    mother_age INTEGER, 
-                    mother_email TEXT, 
-                    father_name TEXT, 
-                    father_age INTEGER, 
-                    father_email TEXT);
-
--- siblings_root has a 1:Many functional dependency with sr_siblings, apply 4NF decomposition.
-create table sr_siblings(
-                    sibling_serial_id SERIAL, 
-                    url_id TEXT NOT NULL, 
-                    PRIMARY KEY (sibling_serial_id, url_id),
-                    FOREIGN KEY url_id 
-                            REFERENCES siblings_root(url_id) 
-                            ON DELETE CASCADE ON UPDATE CASCADE,
-                    name TEXT NOT NULL, 
-                    family_name TEXT NOT NULL, 
-                    dob_month INTEGER NOT NULL, 
-                    dob_year INTEGER NOT NULL);
-
--- sr_siblings_nicknames has a 1:Many functional dependency with sr_siblings, apply 4NF decomposition.
-create table sr_siblings_nicknames(
-                    PRIMARY KEY (sibling_serial_id, url_id, nicknames),
-                    FOREIGN KEY (sibling_serial_id, url_id) 
-                            REFERENCES sr_siblings (sibling_serial_id, url_id)
-                            ON DELETE CASCADE ON UPDATE CASCADE,
-                    sibling_serial_id INTEGER, 
-                    url_id TEXT NOT NULL, 
-                    nicknames TEXT NOT NULL);
-
--- sr_siblings_name_changes has a 1:Many functional dependency with sr_siblings, apply 4NF decomposition.
-create table sr_siblings_name_changes(
-                    PRIMARY KEY (sibling_serial_id, url_id, date_change, previous_name),
-                    FOREIGN KEY (sibling_serial_id, url_id) 
-                            REFERENCES sr_siblings (sibling_serial_id, url_id)
-                            ON DELETE CASCADE ON UPDATE CASCADE,
-                    sibling_serial_id INTEGER, 
-                    url_id TEXT NOT NULL, 
-                    date_change DATE NOT NULL, 
-                    previous_name TEXT DEFAULT 'not changed', -- since used in composite PKEY cannot be NULL. 
-                    previous_family_name TEXT DEFAULT 'not changed', -- since used in composite PKEY cannot be NULL. 
-                    event TEXT NOT NULL);
-)
-```
-
-#### Few last precautions
-* foreign keys should **always** be given the `ON DELETE CASCADE ON UPDATE CASCADE` constraint because `upnack()` upserts
-into the table (first it deletes the records equalling the uid_value - in our case `QWERT43` then reinserting). We want the
-`DELETE` statement to cascade to the branches of the tree tables. 
-
-* if the root JSON does contain a unique k: v pair, simply pass its key to the params dictionary. 
-```textmate
-{ ...
-"uid_key" : ["key_of_json_mapping_to_unique_value_in_root"]
-...}
-```
-
-* don't forget to add serial types when you're creating the tables of the array branches and to add them to the "uid_key" 
-list of the params dictionary, should you array contains dictionaries with nested arrays or leaves, whatever list of columns
-is in "uid_key" will be passed on the branches during the `upack()` recursion. 
-
-* to see the previous examples executes see the `tests` folder. 
-
-
+To know more about how the `json_inserter` modules works with the `json_param` dictionary and how to create one step-by-step
+see the [wikipage](https://github.com/Transparency-International-UK/companies-house-api/wiki/How-to-write-the-a-parameter-dictionary-to-be-able-to-use-the-json_inserter-module)

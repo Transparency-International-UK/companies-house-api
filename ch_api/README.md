@@ -11,7 +11,7 @@
 - create a new virtual environment with **python 3.6+** (previous versions won't work as the programme uses [f-string literals](https://realpython.com/python-f-strings/))   
 `python3 -m venv venv && source venv/bin/activate`.
 - install the requirements  
- `pip3 install -r ./utils/requirements.txt --no-index`. 
+ `pip3 install -r requirements.txt`. 
 
 ##### the database
 

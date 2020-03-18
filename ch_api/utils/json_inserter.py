@@ -164,8 +164,7 @@ class Inserter:
                 if leaf_data is not None:
                     # root -> leaf is a 1:1 dependency.
                     # in case of uid conflict, replace using upsert.
-                    # TODO document the fact that leaves are outright flattened.
-                    #      We do not expect to have leaves of leaves.
+                    # leaves are outright flattened.
                     engine.execute(mode="write",
                                    query=("INSERT INTO {table} ({fields}) VALUES ({placeholders}) "
                                           "ON CONFLICT ({p_key}) DO UPDATE "
@@ -207,7 +206,6 @@ class Inserter:
 
                         # we cannot perform upsert with ON CONFLICT (p_key) DO UPDATE...
                         # simply delete records with root json key and bulk insert.
-                        # TODO test wether this is really needed given the ON DELETE CASCADE ON UPDATE CASCADE.
                         engine.execute(mode="write",
                                        query="DELETE FROM {table} WHERE {fields} = %s",
                                        fields=list(self.json_root_uid_pair.keys()),
@@ -237,7 +235,7 @@ class Inserter:
                                        data=data,
                                        fields=fields)
                     else:
-                        # TODO document that lists of lists are not dealt with.
+                        # lists of lists are not dealt with.
                         raise TypeError(
                             "You reached an array of iterables in the JSON. You need to create a conditional"
                             " branch to handle this edge case.")
