@@ -1,3 +1,5 @@
+# TODO turn into fully fledged unit test with assertions.
+
 from db.pg_engine import MyDb
 from db.pg_constants import DB_CONFIG_ABS_PATH, DB_CONFIG_SECTION, DB_SCHEMA
 from utils.json_getter import Getter
