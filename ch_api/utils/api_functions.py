@@ -15,10 +15,12 @@ FIVE_MINUTES = 300  # Number of seconds in five minutes.
 
 API_BASE_URL = "https://api.companieshouse.gov.uk"
 
+CALLS = 500  # change if your api key gets credited with 1000 calls. Contact CH for that. 
+
 
 @sleep_and_retry  # if we exceed the rate limit imposed by @limits, it forces sleep until we can start again.
 @on_exception(expo, (ConnectionError, Timeout, HTTPError), max_tries=10)
-@limits(calls=1000, period=FIVE_MINUTES)  # CH enforces a 600 queries per 5 minutes limit.
+@limits(calls=CALLS, period=FIVE_MINUTES)  # CH enforces a 600 queries per 5 minutes limit.
 def call_api(url: str, api_key: str) -> Union[None, dict]:
 	"""
 	func to generate a query for an API with auth=(key, ""). Decorators handle rate limit calls and exceptions.
