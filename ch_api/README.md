@@ -25,7 +25,7 @@ database=[choose db name]
 user=[choose user name]    
 password=[choose password]   
 
-- if you have not created the target database yet, simply create it with the `ch_api/Makefile` recipe `make create-db`. 
+- if you have not created the target database yet, simply create it with the `ch_api/Makefile` recipe `make create_db`. 
 A side-effect of this recipe will be to create a `ch_api/pg_env.sh` to be sourced for the psql connection - remove it by
 simply calling `make clean` (or just `rm` it). 
 
